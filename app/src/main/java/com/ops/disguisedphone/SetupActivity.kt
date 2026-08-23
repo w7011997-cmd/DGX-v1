@@ -75,7 +75,7 @@ class SetupActivity : AppCompatActivity() {
                         authenticated = true
                         render()
                     } else {
-                        v.text.clear()
+                        (v as EditText).text.clear()
                     }
                     true
                 } else {
