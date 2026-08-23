@@ -13,19 +13,6 @@ import androidx.biometric.BiometricManager
 import androidx.biometric.BiometricPrompt
 import androidx.core.content.ContextCompat
 
-/**
- * This Activity is registered as a HOME/LAUNCHER category activity so it can
- * be selected as the default launcher (Settings > Apps > Default apps > Home app).
- * Once set as default, this is what shows instead of the real launcher.
- *
- * LOCKED (disguise active): near-empty screen, optionally a Phone shortcut.
- * A double-tap in the bottom zone (where a fingerprint sensor usually sits on
- * devices with a rear/front capacitive sensor) triggers a biometric prompt.
- * On success -> unlock.
- *
- * UNLOCKED: shows a plain list of installed apps so you can actually use the phone.
- * Double-tap the same zone again to re-lock instantly (no biometric needed to hide).
- */
 class DisguiseActivity : AppCompatActivity() {
 
     private var lastTapTime = 0L
@@ -38,7 +25,6 @@ class DisguiseActivity : AppCompatActivity() {
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
-        // Fired when the Home button is pressed while another app is open.
         render()
     }
 
@@ -54,8 +40,6 @@ class DisguiseActivity : AppCompatActivity() {
             showUnlockedScreen()
         }
     }
-
-    // ---------- LOCKED UI ----------
 
     private fun showLockedScreen() {
         val root = FrameLayoutBottomZone(this) { handleZoneTap() }
@@ -74,8 +58,18 @@ class DisguiseActivity : AppCompatActivity() {
 
     private fun promptUnlock() {
         val canAuth = BiometricManager.from(this)
-            .canAuthenticate(BiometricManager.Authenticators.BIOMETRIC_STRONG)
+            .canAuthenticate(BiometricManager.Authenticators.BIOMETRIC_WEAK)
         if (canAuth != BiometricManager.BIOMETRIC_SUCCESS) {
+            val reason = when (canAuth) {
+                BiometricManager.BIOMETRIC_ERROR_NONE_ENROLLED ->
+                    "No fingerprint enrolled in phone Settings yet"
+                BiometricManager.BIOMETRIC_ERROR_NO_HARDWARE ->
+                    "No fingerprint hardware detected"
+                BiometricManager.BIOMETRIC_ERROR_HW_UNAVAILABLE ->
+                    "Fingerprint sensor temporarily unavailable"
+                else -> "Fingerprint unlock unavailable (code $canAuth)"
+            }
+            android.widget.Toast.makeText(this, reason, android.widget.Toast.LENGTH_LONG).show()
             return
         }
 
@@ -90,13 +84,11 @@ class DisguiseActivity : AppCompatActivity() {
         val info = BiometricPrompt.PromptInfo.Builder()
             .setTitle("Unlock")
             .setSubtitle("Confirm your fingerprint to continue")
-            .setAllowedAuthenticators(BiometricManager.Authenticators.BIOMETRIC_STRONG)
+            .setAllowedAuthenticators(BiometricManager.Authenticators.BIOMETRIC_WEAK)
             .build()
 
         prompt.authenticate(info)
     }
-
-    // ---------- UNLOCKED UI ----------
 
     private fun showUnlockedScreen() {
         val scroll = ScrollView(this)
@@ -141,22 +133,13 @@ class DisguiseActivity : AppCompatActivity() {
         setContentView(scroll)
     }
 
-    // Intercept the physical Back / Recents behavior isn't fully possible from
-    // an Activity alone; this covers in-app back presses only.
     override fun onBackPressed() {
-        // No-op while locked: swallow back presses so the disguise can't be
-        // trivially dismissed by backing out. Unlocked mode behaves normally.
         if (!DisguiseState.isActive(this)) {
             super.onBackPressed()
         }
     }
 }
 
-/**
- * A near-empty full-screen view with an invisible tap zone across the bottom
- * ~15% of the screen, matching where a fingerprint sensor commonly sits.
- * Double-tapping inside that zone fires the callback.
- */
 private class FrameLayoutBottomZone(
     context: android.content.Context,
     private val onZoneDoubleTap: () -> Unit
@@ -168,10 +151,6 @@ private class FrameLayoutBottomZone(
     }
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
-        // Whole-screen tap zone: this phone's fingerprint sensor is rear-mounted,
-        // so no on-screen position corresponds to it. Any double-tap anywhere
-        // on the screen triggers the biometric prompt, which then reads
-        // whichever sensor the OS has (front, rear, or under-display).
         if (event.action == MotionEvent.ACTION_DOWN) {
             onZoneDoubleTap()
             return true
