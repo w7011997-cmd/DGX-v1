@@ -20,6 +20,7 @@ import androidx.appcompat.app.AppCompatActivity
 class SetupActivity : AppCompatActivity() {
 
     private var authenticated = false
+    private var showingHomePrompt = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -27,16 +28,20 @@ class SetupActivity : AppCompatActivity() {
     }
 
     private fun render() {
-        if (PasswordStore.isSet(this) && !authenticated) {
-            renderGate()
-        } else if (!PasswordStore.isSet(this)) {
-            renderCreatePassword()
-        } else {
-            renderMain()
+        when {
+            PasswordStore.isSet(this) && !authenticated -> renderPasswordPrompt { authenticated = true; render() }
+            !PasswordStore.isSet(this) -> renderCreatePassword()
+            showingHomePrompt -> renderPasswordPrompt {
+                activateAsHomeApp()
+                showingHomePrompt = false
+                render()
+            }
+            else -> renderMain()
         }
     }
 
-    private fun renderGate() {
+    /** Reusable "Hello" + masked input screen. Calls onSuccess when the word matches; silent on failure. */
+    private fun renderPasswordPrompt(onSuccess: () -> Unit) {
         val layout = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(64, 300, 64, 64)
@@ -57,7 +62,6 @@ class SetupActivity : AppCompatActivity() {
 
         val input = EditText(this).apply {
             inputType = InputType.TYPE_CLASS_TEXT
-            transformationMethod = PasswordTransformationMethod.getInstance()
             imeOptions = EditorInfo.IME_ACTION_GO
             setTextColor(0xFFFFFFFF.toInt())
             background = box
@@ -72,8 +76,7 @@ class SetupActivity : AppCompatActivity() {
             setOnEditorActionListener { v, actionId, _ ->
                 if (actionId == EditorInfo.IME_ACTION_GO) {
                     if (PasswordStore.verify(this@SetupActivity, v.text.toString())) {
-                        authenticated = true
-                        render()
+                        onSuccess()
                     } else {
                         (v as EditText).text.clear()
                     }
@@ -82,6 +85,8 @@ class SetupActivity : AppCompatActivity() {
                     false
                 }
             }
+            // Set last so it isn't reset by setSingleLine()/setInputType().
+            transformationMethod = PasswordTransformationMethod.getInstance()
         }
         layout.addView(input)
         setContentView(layout)
@@ -125,6 +130,17 @@ class SetupActivity : AppCompatActivity() {
         })
 
         setContentView(layout)
+    }
+
+    private fun activateAsHomeApp() {
+        DisguiseState.setActive(this, true)
+        val component = ComponentName(this, DisguiseActivity::class.java)
+        packageManager.setComponentEnabledSetting(
+            component,
+            PackageManager.COMPONENT_ENABLED_STATE_ENABLED,
+            PackageManager.DONT_KILL_APP
+        )
+        startActivity(Intent(Settings.ACTION_HOME_SETTINGS))
     }
 
     private fun renderMain() {
@@ -186,14 +202,8 @@ class SetupActivity : AppCompatActivity() {
         layout.addView(Button(this).apply {
             text = "Set as default Home app"
             setOnClickListener {
-                DisguiseState.setActive(this@SetupActivity, true)
-                val component = ComponentName(this@SetupActivity, DisguiseActivity::class.java)
-                packageManager.setComponentEnabledSetting(
-                    component,
-                    PackageManager.COMPONENT_ENABLED_STATE_ENABLED,
-                    PackageManager.DONT_KILL_APP
-                )
-                startActivity(Intent(Settings.ACTION_HOME_SETTINGS))
+                showingHomePrompt = true
+                render()
             }
         })
 

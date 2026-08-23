@@ -6,6 +6,7 @@ import android.content.pm.PackageManager
 import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
 import android.text.InputType
+import android.text.method.PasswordTransformationMethod
 import android.view.MotionEvent
 import android.view.inputmethod.EditorInfo
 import android.widget.EditText
@@ -59,15 +60,7 @@ class DisguiseActivity : AppCompatActivity() {
 
     private fun showPromptScreen() {
         if (!PasswordStore.isSet(this)) {
-            val tv = TextView(this).apply {
-                text = "No security word set yet.\nOpen \"Phone\" from your app drawer once to set one up first."
-                textSize = 14f
-                setTextColor(0xFFFFFFFF.toInt())
-                setPadding(48, 200, 48, 48)
-            }
-            val container = FrameLayout(this).apply { setBackgroundColor(0xFF000000.toInt()) }
-            container.addView(tv)
-            setContentView(container)
+            showBlankScreen()
             return
         }
 
@@ -94,7 +87,6 @@ class DisguiseActivity : AppCompatActivity() {
             inputType = InputType.TYPE_CLASS_TEXT
             imeOptions = EditorInfo.IME_ACTION_GO
             setTextColor(0xFFFFFFFF.toInt())
-            setHintTextColor(0x66FFFFFF)
             background = box
             setPadding(24, 24, 24, 24)
             setSingleLine(true)
@@ -112,6 +104,9 @@ class DisguiseActivity : AppCompatActivity() {
                     false
                 }
             }
+            // Must be set last: setSingleLine()/setInputType() can silently
+            // reset the transformation method if set before them.
+            transformationMethod = PasswordTransformationMethod.getInstance()
         }
         column.addView(input)
 
