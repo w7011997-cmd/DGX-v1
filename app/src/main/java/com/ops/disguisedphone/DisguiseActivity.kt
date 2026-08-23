@@ -3,6 +3,7 @@ package com.ops.disguisedphone
 import android.content.ComponentName
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
 import android.text.InputType
 import android.view.MotionEvent
@@ -15,8 +16,6 @@ import androidx.appcompat.app.AppCompatActivity
 
 class DisguiseActivity : AppCompatActivity() {
 
-    private var lastTapTime = 0L
-    private val doubleTapWindowMs = 350L
     private var showingPrompt = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -85,13 +84,26 @@ class DisguiseActivity : AppCompatActivity() {
         }
         column.addView(hello)
 
+        val box = GradientDrawable().apply {
+            setColor(0xFF1A1A1A.toInt())
+            cornerRadius = 16f
+            setStroke(2, 0x33FFFFFF)
+        }
+
         val input = EditText(this).apply {
-            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
+            inputType = InputType.TYPE_CLASS_TEXT
             imeOptions = EditorInfo.IME_ACTION_GO
             setTextColor(0xFFFFFFFF.toInt())
             setHintTextColor(0x66FFFFFF)
-            setPadding(0, 32, 0, 0)
+            background = box
+            setPadding(24, 24, 24, 24)
             setSingleLine(true)
+            val lp = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            )
+            lp.topMargin = 32
+            layoutParams = lp
             setOnEditorActionListener { v, actionId, _ ->
                 if (actionId == EditorInfo.IME_ACTION_GO) {
                     handleAttempt(v.text.toString())
