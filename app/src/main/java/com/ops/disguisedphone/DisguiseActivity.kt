@@ -1,10 +1,8 @@
 package com.ops.disguisedphone
 
 import android.content.Intent
-import android.content.pm.PackageManager
 import android.os.Bundle
 import android.view.MotionEvent
-import android.view.View
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
@@ -20,25 +18,33 @@ class DisguiseActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        render()
+        try { render() } catch (t: Throwable) { showCrashInfo(t) }
+    }
+
+    private fun showCrashInfo(t: Throwable) {
+        val tv = TextView(this).apply {
+            text = "CRASH:\n\n" + android.util.Log.getStackTraceString(t)
+            textSize = 12f
+            setPadding(24, 64, 24, 24)
+            setTextColor(0xFFFFFFFF.toInt())
+        }
+        val scroll = ScrollView(this)
+        scroll.addView(tv)
+        setContentView(scroll)
     }
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
-        render()
+        try { render() } catch (t: Throwable) { showCrashInfo(t) }
     }
 
     override fun onResume() {
         super.onResume()
-        render()
+        try { render() } catch (t: Throwable) { showCrashInfo(t) }
     }
 
     private fun render() {
-        if (DisguiseState.isActive(this)) {
-            showLockedScreen()
-        } else {
-            showUnlockedScreen()
-        }
+        if (DisguiseState.isActive(this)) showLockedScreen() else showUnlockedScreen()
     }
 
     private fun showLockedScreen() {
@@ -61,12 +67,9 @@ class DisguiseActivity : AppCompatActivity() {
             .canAuthenticate(BiometricManager.Authenticators.BIOMETRIC_WEAK)
         if (canAuth != BiometricManager.BIOMETRIC_SUCCESS) {
             val reason = when (canAuth) {
-                BiometricManager.BIOMETRIC_ERROR_NONE_ENROLLED ->
-                    "No fingerprint enrolled in phone Settings yet"
-                BiometricManager.BIOMETRIC_ERROR_NO_HARDWARE ->
-                    "No fingerprint hardware detected"
-                BiometricManager.BIOMETRIC_ERROR_HW_UNAVAILABLE ->
-                    "Fingerprint sensor temporarily unavailable"
+                BiometricManager.BIOMETRIC_ERROR_NONE_ENROLLED -> "No fingerprint enrolled in phone Settings yet"
+                BiometricManager.BIOMETRIC_ERROR_NO_HARDWARE -> "No fingerprint hardware detected"
+                BiometricManager.BIOMETRIC_ERROR_HW_UNAVAILABLE -> "Fingerprint sensor temporarily unavailable"
                 else -> "Fingerprint unlock unavailable (code $canAuth)"
             }
             android.widget.Toast.makeText(this, reason, android.widget.Toast.LENGTH_LONG).show()
