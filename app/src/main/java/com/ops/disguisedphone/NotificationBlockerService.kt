@@ -14,7 +14,7 @@ import android.service.notification.NotificationListenerService
 class NotificationBlockerService : NotificationListenerService() {
 
     override fun onNotificationPosted(sbn: StatusBarNotification) {
-        if (DisguiseState.isActive(applicationContext)) {
+        if (DisguiseState.isActive(applicationContext) && !SetupForeground.inForeground) {
             // Don't cancel our own foreground/setup notifications if we add any later.
             if (sbn.packageName != applicationContext.packageName) {
                 cancelNotification(sbn.key)
@@ -25,7 +25,7 @@ class NotificationBlockerService : NotificationListenerService() {
     override fun onListenerConnected() {
         super.onListenerConnected()
         // If disguise was active before a reboot/app restart, clear the shade immediately.
-        if (DisguiseState.isActive(applicationContext)) {
+        if (DisguiseState.isActive(applicationContext) && !SetupForeground.inForeground) {
             try {
                 activeNotifications?.forEach { sbn ->
                     if (sbn.packageName != applicationContext.packageName) {

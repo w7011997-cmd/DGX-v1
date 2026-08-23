@@ -33,16 +33,24 @@
             </intent-filter>
         </activity>
 
-        <!-- Plain launcher entry so you can open the app normally the
-             first time, to grant permissions and set it as default launcher. -->
+        <!-- Not directly launchable from the drawer; reached only via the
+             disguise screen's double-tap unlock, or via SetupLauncherAlias
+             on first install before the disguise has been armed. -->
         <activity
             android:name=".SetupActivity"
-            android:exported="true">
+            android:exported="false">
+        </activity>
+
+        <activity-alias
+            android:name=".SetupLauncherAlias"
+            android:targetActivity=".SetupActivity"
+            android:exported="true"
+            android:enabled="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
-        </activity>
+        </activity-alias>
 
         <!-- Listens to all incoming notifications and cancels them
              while disguise mode is active. Requires the user to grant

@@ -1,14 +1,12 @@
 package com.ops.disguisedphone
 
-import android.content.ComponentName
 import android.content.Intent
-import android.content.pm.PackageManager
-import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
 import android.text.InputType
 import android.text.method.PasswordTransformationMethod
 import android.view.MotionEvent
 import android.view.inputmethod.EditorInfo
+import android.view.inputmethod.InputMethodManager
 import android.widget.EditText
 import android.widget.FrameLayout
 import android.widget.LinearLayout
@@ -46,7 +44,6 @@ class DisguiseActivity : AppCompatActivity() {
     }
 
     private fun render() {
-        if (!DisguiseState.isActive(this)) return
         if (showingPrompt) showPromptScreen() else showBlankScreen()
     }
 
@@ -70,21 +67,14 @@ class DisguiseActivity : AppCompatActivity() {
             setPadding(64, 300, 64, 64)
         }
 
-        val hello = TextView(this).apply {
-            text = "Hello"
-            textSize = 20f
-            setTextColor(0xFFFFFFFF.toInt())
-        }
-        column.addView(hello)
-
-        val box = GradientDrawable().apply {
+        val box = android.graphics.drawable.GradientDrawable().apply {
             setColor(0xFF1A1A1A.toInt())
             cornerRadius = 16f
             setStroke(2, 0x33FFFFFF)
         }
 
         val input = EditText(this).apply {
-            inputType = InputType.TYPE_CLASS_TEXT
+            inputType = InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_VARIATION_PASSWORD
             imeOptions = EditorInfo.IME_ACTION_GO
             setTextColor(0xFFFFFFFF.toInt())
             background = box
@@ -104,10 +94,29 @@ class DisguiseActivity : AppCompatActivity() {
                     false
                 }
             }
-            // Must be set last: setSingleLine()/setInputType() can silently
-            // reset the transformation method if set before them.
             transformationMethod = PasswordTransformationMethod.getInstance()
         }
+
+        var lastHelloTap = 0L
+        val hello = TextView(this).apply {
+            text = "Hello"
+            textSize = 20f
+            setTextColor(0xFFFFFFFF.toInt())
+            isClickable = true
+            setOnClickListener {
+                val now = System.currentTimeMillis()
+                if (now - lastHelloTap <= 350) {
+                    lastHelloTap = 0L
+                    input.inputType = InputType.TYPE_CLASS_TEXT
+                    input.transformationMethod = PasswordTransformationMethod.getInstance()
+                    val imm = getSystemService(INPUT_METHOD_SERVICE) as InputMethodManager
+                    imm.restartInput(input)
+                } else {
+                    lastHelloTap = now
+                }
+            }
+        }
+        column.addView(hello)
         column.addView(input)
 
         container.addView(column)
@@ -117,7 +126,7 @@ class DisguiseActivity : AppCompatActivity() {
 
     private fun handleAttempt(attempt: String) {
         if (PasswordStore.verify(this, attempt)) {
-            unlockAndHandOffToSystemChooser()
+            unlockAndOpenSetup()
         } else {
             IntruderCapture.capture(this, this)
             showingPrompt = false
@@ -125,21 +134,12 @@ class DisguiseActivity : AppCompatActivity() {
         }
     }
 
-    private fun unlockAndHandOffToSystemChooser() {
-        DisguiseState.setActive(this, false)
-
-        val component = ComponentName(this, DisguiseActivity::class.java)
-        packageManager.setComponentEnabledSetting(
-            component,
-            PackageManager.COMPONENT_ENABLED_STATE_DISABLED,
-            PackageManager.DONT_KILL_APP
-        )
-
-        val homeIntent = Intent(Intent.ACTION_MAIN).apply {
-            addCategory(Intent.CATEGORY_HOME)
+    private fun unlockAndOpenSetup() {
+        val intent = Intent(this, SetupActivity::class.java).apply {
+            putExtra("skip_gate", true)
             flags = Intent.FLAG_ACTIVITY_NEW_TASK
         }
-        startActivity(homeIntent)
+        startActivity(intent)
         finish()
     }
 
