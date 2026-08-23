@@ -395,6 +395,41 @@ class SetupActivity : AppCompatActivity() {
             }
         })
 
+        val hasSmsPermission = ContextCompat.checkSelfPermission(this, Manifest.permission.RECEIVE_SMS) ==
+            PackageManager.PERMISSION_GRANTED
+        layout.addView(Button(this).apply {
+            text = if (hasSmsPermission) "SMS wipe trigger: ON" else "Grant SMS permission"
+            setOnClickListener {
+                if (!hasSmsPermission) {
+                    ActivityCompat.requestPermissions(
+                        this@SetupActivity,
+                        arrayOf(Manifest.permission.RECEIVE_SMS, Manifest.permission.READ_PHONE_STATE),
+                        1002
+                    )
+                }
+            }
+        })
+
+        layout.addView(Button(this).apply {
+            text = "Grant exact alarm scheduling"
+            setOnClickListener {
+                if (android.os.Build.VERSION.SDK_INT >= 31) {
+                    startActivity(Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM))
+                } else {
+                    Toast.makeText(this@SetupActivity, "Not needed on this Android version", Toast.LENGTH_SHORT).show()
+                }
+            }
+        })
+
+        val liveMode = WipeModeState.isLiveMode(this)
+        layout.addView(Button(this).apply {
+            text = if (liveMode) "WIPE MODE: LIVE (tap to switch to Test)" else "WIPE MODE: TEST (tap to switch to Live)"
+            setOnClickListener {
+                WipeModeState.setLiveMode(this@SetupActivity, !liveMode)
+                render()
+            }
+        })
+
         val hasCameraPermission = ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) ==
             PackageManager.PERMISSION_GRANTED
 
