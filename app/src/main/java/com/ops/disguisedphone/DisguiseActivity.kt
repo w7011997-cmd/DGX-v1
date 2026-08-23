@@ -1,23 +1,37 @@
 package com.ops.disguisedphone
 
+import android.content.ComponentName
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.os.Bundle
+import android.text.InputType
 import android.view.MotionEvent
+import android.view.inputmethod.EditorInfo
+import android.widget.EditText
+import android.widget.FrameLayout
 import android.widget.LinearLayout
-import android.widget.ScrollView
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
-import androidx.biometric.BiometricManager
-import androidx.biometric.BiometricPrompt
-import androidx.core.content.ContextCompat
 
 class DisguiseActivity : AppCompatActivity() {
 
     private var lastTapTime = 0L
     private val doubleTapWindowMs = 350L
+    private var showingPrompt = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        try { render() } catch (t: Throwable) { showCrashInfo(t) }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        showingPrompt = false
+        try { render() } catch (t: Throwable) { showCrashInfo(t) }
+    }
+
+    override fun onResume() {
+        super.onResume()
         try { render() } catch (t: Throwable) { showCrashInfo(t) }
     }
 
@@ -28,134 +42,128 @@ class DisguiseActivity : AppCompatActivity() {
             setPadding(24, 64, 24, 24)
             setTextColor(0xFFFFFFFF.toInt())
         }
-        val scroll = ScrollView(this)
-        scroll.addView(tv)
-        setContentView(scroll)
-    }
-
-    override fun onNewIntent(intent: Intent) {
-        super.onNewIntent(intent)
-        try { render() } catch (t: Throwable) { showCrashInfo(t) }
-    }
-
-    override fun onResume() {
-        super.onResume()
-        try { render() } catch (t: Throwable) { showCrashInfo(t) }
+        setContentView(tv)
     }
 
     private fun render() {
-        if (DisguiseState.isActive(this)) showLockedScreen() else showUnlockedScreen()
+        if (!DisguiseState.isActive(this)) return
+        if (showingPrompt) showPromptScreen() else showBlankScreen()
     }
 
-    private fun showLockedScreen() {
-        val root = FrameLayoutBottomZone(this) { handleZoneTap() }
+    private fun showBlankScreen() {
+        val root = FullScreenDoubleTap(this) {
+            showingPrompt = true
+            render()
+        }
         setContentView(root)
     }
 
-    private fun handleZoneTap() {
-        val now = System.currentTimeMillis()
-        if (now - lastTapTime <= doubleTapWindowMs) {
-            lastTapTime = 0L
-            promptUnlock()
-        } else {
-            lastTapTime = now
-        }
-    }
-
-    private fun promptUnlock() {
-        val canAuth = BiometricManager.from(this)
-            .canAuthenticate(BiometricManager.Authenticators.BIOMETRIC_WEAK)
-        if (canAuth != BiometricManager.BIOMETRIC_SUCCESS) {
-            val reason = when (canAuth) {
-                BiometricManager.BIOMETRIC_ERROR_NONE_ENROLLED -> "No fingerprint enrolled in phone Settings yet"
-                BiometricManager.BIOMETRIC_ERROR_NO_HARDWARE -> "No fingerprint hardware detected"
-                BiometricManager.BIOMETRIC_ERROR_HW_UNAVAILABLE -> "Fingerprint sensor temporarily unavailable"
-                else -> "Fingerprint unlock unavailable (code $canAuth)"
+    private fun showPromptScreen() {
+        if (!PasswordStore.isSet(this)) {
+            val tv = TextView(this).apply {
+                text = "No security word set yet.\nOpen \"Phone\" from your app drawer once to set one up first."
+                textSize = 14f
+                setTextColor(0xFFFFFFFF.toInt())
+                setPadding(48, 200, 48, 48)
             }
-            android.widget.Toast.makeText(this, reason, android.widget.Toast.LENGTH_LONG).show()
+            val container = FrameLayout(this).apply { setBackgroundColor(0xFF000000.toInt()) }
+            container.addView(tv)
+            setContentView(container)
             return
         }
 
-        val executor = ContextCompat.getMainExecutor(this)
-        val prompt = BiometricPrompt(this, executor, object : BiometricPrompt.AuthenticationCallback() {
-            override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
-                DisguiseState.setActive(this@DisguiseActivity, false)
-                render()
-            }
-        })
-
-        val info = BiometricPrompt.PromptInfo.Builder()
-            .setTitle("Unlock")
-            .setSubtitle("Confirm your fingerprint to continue")
-            .setAllowedAuthenticators(BiometricManager.Authenticators.BIOMETRIC_WEAK)
-            .build()
-
-        prompt.authenticate(info)
-    }
-
-    private fun showUnlockedScreen() {
-        val scroll = ScrollView(this)
-        val list = LinearLayout(this).apply {
+        val container = FrameLayout(this).apply { setBackgroundColor(0xFF000000.toInt()) }
+        val column = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(32, 64, 32, 32)
+            setPadding(64, 300, 64, 64)
         }
 
-        val lockRow = TextView(this).apply {
-            text = "🔒 Tap here to hide again"
-            textSize = 16f
-            setPadding(24, 24, 24, 24)
-            setOnClickListener {
-                DisguiseState.setActive(this@DisguiseActivity, true)
-                render()
-            }
+        val hello = TextView(this).apply {
+            text = "Hello"
+            textSize = 20f
+            setTextColor(0xFFFFFFFF.toInt())
         }
-        list.addView(lockRow)
+        column.addView(hello)
 
-        val pm = packageManager
-        val mainIntent = Intent(Intent.ACTION_MAIN, null).apply {
-            addCategory(Intent.CATEGORY_LAUNCHER)
-        }
-        val apps = pm.queryIntentActivities(mainIntent, 0)
-            .filter { it.activityInfo.packageName != packageName }
-            .sortedBy { it.loadLabel(pm).toString().lowercase() }
-
-        for (app in apps) {
-            val row = TextView(this).apply {
-                text = app.loadLabel(pm)
-                textSize = 18f
-                setPadding(24, 32, 24, 32)
-                setOnClickListener {
-                    val launchIntent = pm.getLaunchIntentForPackage(app.activityInfo.packageName)
-                    if (launchIntent != null) startActivity(launchIntent)
+        val input = EditText(this).apply {
+            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
+            imeOptions = EditorInfo.IME_ACTION_GO
+            setTextColor(0xFFFFFFFF.toInt())
+            setHintTextColor(0x66FFFFFF)
+            setPadding(0, 32, 0, 0)
+            setSingleLine(true)
+            setOnEditorActionListener { v, actionId, _ ->
+                if (actionId == EditorInfo.IME_ACTION_GO) {
+                    handleAttempt(v.text.toString())
+                    true
+                } else {
+                    false
                 }
             }
-            list.addView(row)
         }
+        column.addView(input)
 
-        scroll.addView(list)
-        setContentView(scroll)
+        container.addView(column)
+        setContentView(container)
+        input.requestFocus()
+    }
+
+    private fun handleAttempt(attempt: String) {
+        if (PasswordStore.verify(this, attempt)) {
+            unlockAndHandOffToSystemChooser()
+        } else {
+            showingPrompt = false
+            render()
+        }
+    }
+
+    private fun unlockAndHandOffToSystemChooser() {
+        DisguiseState.setActive(this, false)
+
+        val component = ComponentName(this, DisguiseActivity::class.java)
+        packageManager.setComponentEnabledSetting(
+            component,
+            PackageManager.COMPONENT_ENABLED_STATE_DISABLED,
+            PackageManager.DONT_KILL_APP
+        )
+
+        val homeIntent = Intent(Intent.ACTION_MAIN).apply {
+            addCategory(Intent.CATEGORY_HOME)
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK
+        }
+        startActivity(homeIntent)
+        finish()
     }
 
     override fun onBackPressed() {
-        if (!DisguiseState.isActive(this)) {
-            super.onBackPressed()
+        if (showingPrompt) {
+            showingPrompt = false
+            render()
         }
     }
 }
 
-private class FrameLayoutBottomZone(
+private class FullScreenDoubleTap(
     context: android.content.Context,
-    private val onZoneDoubleTap: () -> Unit
-) : android.widget.FrameLayout(context) {
+    private val onDoubleTap: () -> Unit
+) : FrameLayout(context) {
 
     init {
         setBackgroundColor(0xFF000000.toInt())
         isClickable = true
     }
 
+    private var lastDownTime = 0L
+
     override fun onTouchEvent(event: MotionEvent): Boolean {
         if (event.action == MotionEvent.ACTION_DOWN) {
-            onZoneDoubleTap()
+            val now = System.currentTimeMillis()
+            if (now - lastDownTime <= 350) {
+                lastDownTime = 0L
+                onDoubleTap()
+            } else {
+                lastDownTime = now
+            }
             return true
         }
         return super.onTouchEvent(event)
