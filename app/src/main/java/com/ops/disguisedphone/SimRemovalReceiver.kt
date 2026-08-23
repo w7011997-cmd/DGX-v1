@@ -3,7 +3,7 @@ package com.ops.disguisedphone
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
-import android.telephony.TelephonyManager
+
 
 class SimRemovalReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {

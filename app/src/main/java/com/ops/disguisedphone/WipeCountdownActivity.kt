@@ -49,7 +49,7 @@ class WipeCountdownActivity : AppCompatActivity() {
                         timer?.cancel()
                         finish()
                     } else {
-                        v.text.clear()
+                        (v as EditText).text.clear()
                     }
                     true
                 } else {
