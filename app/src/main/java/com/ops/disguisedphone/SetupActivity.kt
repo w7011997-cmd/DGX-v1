@@ -388,6 +388,13 @@ class SetupActivity : AppCompatActivity() {
             }
         })
 
+        layout.addView(Button(this).apply {
+            text = "Enable screen pinning"
+            setOnClickListener {
+                startActivity(Intent(Settings.ACTION_SECURITY_SETTINGS))
+            }
+        })
+
         val hasCameraPermission = ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) ==
             PackageManager.PERMISSION_GRANTED
 

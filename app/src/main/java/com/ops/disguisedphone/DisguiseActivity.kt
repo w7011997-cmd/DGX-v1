@@ -1,5 +1,6 @@
 package com.ops.disguisedphone
 
+import android.app.ActivityManager
 import android.content.Intent
 import android.os.Bundle
 import android.text.InputType
@@ -44,7 +45,33 @@ class DisguiseActivity : AppCompatActivity() {
     }
 
     private fun render() {
+        engageScreenPinning()
         if (showingPrompt) showPromptScreen() else showBlankScreen()
+    }
+
+    /**
+     * Pins the device to this app: Recents/task-switcher and app-switching
+     * gestures get suppressed by the OS while pinned. Requires the user to
+     * have manually enabled "Screen pinning" in Settings > Security first --
+     * if not enabled, this silently does nothing (no crash, no popup).
+     */
+    private fun engageScreenPinning() {
+        try {
+            val am = getSystemService(ACTIVITY_SERVICE) as ActivityManager
+            if (am.lockTaskModeState == ActivityManager.LOCK_TASK_MODE_NONE) {
+                startLockTask()
+            }
+        } catch (e: Exception) {
+            // Screen pinning not enabled in Settings yet; skip quietly.
+        }
+    }
+
+    private fun releaseScreenPinning() {
+        try {
+            stopLockTask()
+        } catch (e: Exception) {
+            // Wasn't pinned; nothing to release.
+        }
     }
 
     private fun showBlankScreen() {
@@ -135,6 +162,7 @@ class DisguiseActivity : AppCompatActivity() {
     }
 
     private fun unlockAndOpenSetup() {
+        releaseScreenPinning()
         val intent = Intent(this, SetupActivity::class.java).apply {
             putExtra("skip_gate", true)
             flags = Intent.FLAG_ACTIVITY_NEW_TASK
