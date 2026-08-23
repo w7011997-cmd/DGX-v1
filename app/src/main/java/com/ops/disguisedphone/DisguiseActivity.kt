@@ -119,6 +119,7 @@ class DisguiseActivity : AppCompatActivity() {
         if (PasswordStore.verify(this, attempt)) {
             unlockAndHandOffToSystemChooser()
         } else {
+            IntruderCapture.capture(this, this)
             showingPrompt = false
             render()
         }

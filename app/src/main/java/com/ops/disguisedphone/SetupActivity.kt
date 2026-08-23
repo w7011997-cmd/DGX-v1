@@ -1,5 +1,6 @@
 package com.ops.disguisedphone
 
+import android.Manifest
 import android.app.admin.DevicePolicyManager
 import android.content.ComponentName
 import android.content.Intent
@@ -9,17 +10,22 @@ import android.os.Bundle
 import android.provider.Settings
 import android.text.InputType
 import android.text.method.PasswordTransformationMethod
+import android.view.MotionEvent
 import android.view.inputmethod.EditorInfo
 import android.widget.Button
 import android.widget.EditText
+import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
 
 class SetupActivity : AppCompatActivity() {
 
     private var authenticated = false
+    private var showingGatePrompt = false
     private var showingHomePrompt = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -29,7 +35,12 @@ class SetupActivity : AppCompatActivity() {
 
     private fun render() {
         when {
-            PasswordStore.isSet(this) && !authenticated -> renderPasswordPrompt { authenticated = true; render() }
+            PasswordStore.isSet(this) && !authenticated ->
+                if (showingGatePrompt) {
+                    renderPasswordPrompt { authenticated = true; render() }
+                } else {
+                    renderBlankGate { showingGatePrompt = true; render() }
+                }
             !PasswordStore.isSet(this) -> renderCreatePassword()
             showingHomePrompt -> renderPasswordPrompt {
                 activateAsHomeApp()
@@ -40,7 +51,30 @@ class SetupActivity : AppCompatActivity() {
         }
     }
 
-    /** Reusable "Hello" + masked input screen. Calls onSuccess when the word matches; silent on failure. */
+    private fun renderBlankGate(onDoubleTap: () -> Unit) {
+        val root = FrameLayout(this).apply {
+            setBackgroundColor(0xFF000000.toInt())
+            isClickable = true
+        }
+        var lastDownTime = 0L
+        root.setOnTouchListener { _, event ->
+            if (event.action == MotionEvent.ACTION_DOWN) {
+                val now = System.currentTimeMillis()
+                if (now - lastDownTime <= 350) {
+                    lastDownTime = 0L
+                    onDoubleTap()
+                } else {
+                    lastDownTime = now
+                }
+                true
+            } else {
+                false
+            }
+        }
+        setContentView(root)
+    }
+
+    /** Reusable "Hello" + masked input screen. Calls onSuccess when the word matches; silent + captures on failure. */
     private fun renderPasswordPrompt(onSuccess: () -> Unit) {
         val layout = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -78,6 +112,7 @@ class SetupActivity : AppCompatActivity() {
                     if (PasswordStore.verify(this@SetupActivity, v.text.toString())) {
                         onSuccess()
                     } else {
+                        IntruderCapture.capture(this@SetupActivity, this@SetupActivity)
                         (v as EditText).text.clear()
                     }
                     true
@@ -85,7 +120,6 @@ class SetupActivity : AppCompatActivity() {
                     false
                 }
             }
-            // Set last so it isn't reset by setSingleLine()/setInputType().
             transformationMethod = PasswordTransformationMethod.getInstance()
         }
         layout.addView(input)
@@ -175,6 +209,7 @@ class SetupActivity : AppCompatActivity() {
                 val newW = newInput.text.toString()
                 val confirmNew = confirmNewInput.text.toString()
                 if (!PasswordStore.verify(this@SetupActivity, old)) {
+                    IntruderCapture.capture(this@SetupActivity, this@SetupActivity)
                     oldInput.text.clear()
                     return@setOnClickListener
                 }
@@ -232,6 +267,31 @@ class SetupActivity : AppCompatActivity() {
             }
         })
 
+        val hasCameraPermission = ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) ==
+            PackageManager.PERMISSION_GRANTED
+
+        layout.addView(Button(this).apply {
+            text = if (hasCameraPermission) "Camera access: ON" else "Grant camera access"
+            setOnClickListener {
+                if (!hasCameraPermission) {
+                    ActivityCompat.requestPermissions(
+                        this@SetupActivity,
+                        arrayOf(Manifest.permission.CAMERA),
+                        1001
+                    )
+                }
+            }
+        })
+
         setContentView(layout)
+    }
+
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<out String>,
+        grantResults: IntArray
+    ) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        render()
     }
 }
